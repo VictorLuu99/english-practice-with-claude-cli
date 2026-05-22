@@ -31,8 +31,9 @@ if ! command -v whisper-cli >/dev/null 2>&1; then
   exit 1
 fi
 
-TMPWAV="$(mktemp -t engprac).wav"
-trap 'rm -f "$TMPWAV" "$TMPWAV.out.txt"' EXIT
+TMPBASE="$(mktemp -t engprac)"
+TMPWAV="$TMPBASE.wav"
+trap 'rm -f "$TMPBASE" "$TMPWAV" "$TMPWAV.out.txt"' EXIT
 
 echo "🎤 Đang nghe... (nói xong giữ im ${SILENCE_TAIL}s, hoặc Ctrl-C)" >&2
 
