@@ -48,6 +48,7 @@ Mỗi câu chọn 1 chủ đề khác chủ đề câu trước.
 - Sai grammar nhẹ (article, preposition) → 1 bullet ngắn + giải thích why.
 - Sai cấu trúc lớn (sai thì, sai chủ ngữ) → 1-2 bullet, gợi ý cách nghĩ lại.
 - Transcript khác xa câu mong đợi → ưu tiên đưa Model rõ, ít chê.
+- Nếu transcript là một bản dịch tự nhiên KHÁC với Model nhưng vẫn đúng nghĩa → công nhận ("Cả 2 cách đều ổn!"), đưa Model như alternative, không chê.
 
 **Pronunciation note — CHỈ thêm khi có signal cụ thể:**
 
@@ -67,7 +68,7 @@ Mỗi câu chọn 1 chủ đề khác chủ đề câu trước.
 - **Transcript rỗng** → in `❓ Không nghe rõ, sang câu khác nhé.` rồi đi tiếp.
 - **User type chữ thay vì nói:**
   - "stop" / "dừng" / "thôi" / "quit" → kết thúc với 1 dòng goodbye ngắn.
-  - "câu dễ hơn" / "easier" → câu kế đơn giản hơn (8-12 từ), vẫn random topic.
+  - "câu dễ hơn" / "easier" → sinh câu MỚI random topic, độ dài 8-12 từ (KHÔNG retry câu trước, không liên quan nội dung câu vừa rồi).
   - "giải thích thêm" / câu hỏi grammar khác → trả lời ngắn trong 2-3 câu, RỒI tiếp loop (sinh câu Việt mới).
 - **Script báo lỗi** (exit code != 0 từ Bash tool) → in stderr gốc cho user, gợi ý chạy `./scripts/setup.sh`, KHÔNG loop tiếp.
 
