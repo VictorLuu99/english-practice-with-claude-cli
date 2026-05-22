@@ -42,7 +42,7 @@ export SPEAK_VOICE="Linh (Enhanced)"   # hoặc voice Vi nào bạn đã có
 
 | Script | Env var | Default | Mô tả |
 |---|---|---|---|
-| `speak.sh` | `SPEAK_VOICE` | `Linh (Premium)` | macOS voice. Tự fallback về `Linh` (compact) nếu Premium chưa cài, có warning trên stderr. |
+| `speak.sh` | `SPEAK_VOICE` | `Linh (Enhanced)` | macOS voice. Tự fallback về `Linh` (compact) nếu Enhanced chưa cài, có warning trên stderr. (Apple không có Premium cho tiếng Việt — chỉ Linh và Linh Enhanced.) |
 | `speak.sh` | `SPEAK_RATE` | `265` | Words per minute (~1.5× tốc độ tự nhiên của Linh). Giảm xuống `175` nếu thấy nhanh quá. |
 | `record.sh` | `WHISPER_MODEL` | `~/.cache/whisper-cpp/ggml-small.en.bin` | Path tới model |
 | `record.sh` | `SILENCE_TAIL` | `1.5` | Giây im lặng để cắt |
