@@ -1,0 +1,8 @@
+# Audio tmp files from record.sh
+*.wav
+
+# macOS metadata
+.DS_Store
+
+# Whisper output side-files (just in case)
+*.wav.out.txt
