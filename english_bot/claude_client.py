@@ -49,7 +49,11 @@ class ClaudeClient:
         """
         options = ClaudeAgentOptions(system_prompt=self._system_prompt)
         chunks: list[str] = []
-        async for msg in await query(prompt=user_message, options=options):
+        # NOTE: `query` is an async-generator function (verified via
+        # inspect.isasyncgenfunction). Calling it returns an async_generator
+        # directly — do NOT `await` it, or you get:
+        #   TypeError: object async_generator can't be used in 'await' expression
+        async for msg in query(prompt=user_message, options=options):
             if isinstance(msg, AssistantMessage):
                 for block in msg.content:
                     text = getattr(block, "text", None)
