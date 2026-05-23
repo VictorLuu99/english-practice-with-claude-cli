@@ -157,6 +157,10 @@ def transcribe(audio_path: Path, model_path: str) -> str:
     Converts the input to 16kHz mono wav via ffmpeg, then runs whisper-cli with
     the given model. Returns the trimmed transcript (may be empty string if
     nothing was detected).
+
+    Caller owns cleanup of `audio_path.parent`; intermediate `_whisper_in.wav`
+    and `_whisper_out.txt` are left there (orchestrator wraps each call in a
+    `tempfile.TemporaryDirectory`).
     """
     work_dir = audio_path.parent
     wav_path = work_dir / "_whisper_in.wav"
