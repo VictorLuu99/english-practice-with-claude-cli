@@ -82,6 +82,45 @@ export WHISPER_MODEL=~/.cache/whisper-cpp/ggml-base.en.bin
 └── README.md
 ```
 
+## Telegram bot version (iPhone-friendly)
+
+Same loop, but you talk to a Telegram bot from your phone instead of the
+terminal. Bot service runs on this macOS host; iPhone is the client.
+
+### Setup (one-time)
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) → copy the
+   `TELEGRAM_BOT_TOKEN`.
+2. Send any message to your new bot from your iPhone Telegram app. Then run:
+   ```
+   curl "https://api.telegram.org/bot<TOKEN>/getUpdates" | jq '.result[].message.chat.id'
+   ```
+   to read your `chat_id`.
+3. Copy `.env.example` → `.env`, fill in token + chat_ids:
+   ```
+   TELEGRAM_BOT_TOKEN=123456:abc...
+   ALLOWED_CHAT_IDS=<your_chat_id>
+   ```
+4. Install Python deps:
+   ```
+   python3.11 -m venv .venv
+   .venv/bin/pip install -e ".[dev]"
+   ```
+
+### Run
+
+```bash
+./scripts/run_bot.sh   # Ctrl-C to stop
+```
+
+On iPhone: open Telegram → your bot → `/start` → long-press 🎙 to reply →
+`/stop` when done.
+
+Bot only runs while this macOS terminal is open and the laptop is awake.
+Whitelist enforced: chats outside `ALLOWED_CHAT_IDS` are silently ignored.
+
+See [tests/smoke.md](tests/smoke.md) for the full manual checklist.
+
 ## License
 
 Personal use.
