@@ -95,9 +95,9 @@ Package `english_bot/`:
 | `poller.py` | `python-telegram-bot` Application with long-polling. Registers `/start`, `/stop`, voice MessageHandler. Whitelist check per update. | `telegram`, `orchestrator` |
 | `orchestrator.py` | Per-chat state machine. Drives `/start` → emit round → wait → on voice reply: evaluate + emit next round. `/stop` halts loop. | `claude_client`, `audio` |
 | `claude_client.py` | Wrapper around `claude-agent-sdk`. Two functions: `generate_prompt() -> str` returns a Vi sentence; `evaluate(prompt, transcript) -> Feedback`. Each invocation = one fresh stateless query. | `claude_agent_sdk` |
-| `audio.py` | Subprocess wrappers. `synthesize_vi(text) -> ogg_path` (Vi/En bilingual split on backticks, same convention as `speak.sh`); `synthesize_en(text) -> ogg_path` (Samantha rate 140); `transcribe(ogg_path) -> str`. | `subprocess`, `ffmpeg`, `say`, `whisper-cli` |
+| `audio.py` | Subprocess wrappers. `synthesize_vi(text) -> ogg_path` (Vi/En bilingual split on backticks, same convention as `speak.sh`); `synthesize_en(text) -> ogg_path` (Samantha rate 140); `transcribe(ogg_path) -> str`. **Note:** `sox`/`rec` from `record.sh` is NOT reused — Telegram delivers pre-recorded ogg/opus voice notes, so no live capture is needed. Only `say`, `ffmpeg`, and `whisper-cli` are subprocess-invoked. All audio format conversion is via `ffmpeg` subprocess; no Python audio libraries (`pydub`, `soundfile`, etc.). | `subprocess`, `ffmpeg`, `say`, `whisper-cli` |
 | `models.py` | `Feedback` dataclass: `transcript`, `evaluation_text`, `model_english`, `vi_summary`. Claude returns JSON matching this shape (structured output). | `dataclasses` |
-| `prompts/system.md` | System prompt for Claude. Ported from `.claude/skills/english-practice.md`, with Bash tool invocations stripped (this is non-interactive). Defines: free-form topic generation, Vi prompt format with backticks for English loanwords, JSON feedback schema. | — |
+| `prompts/system.md` | System prompt for Claude. Ported from `.claude/skills/english-practice.md`, with Bash tool invocations stripped (this is non-interactive). Defines: free-form topic generation, Vi prompt format with backticks for English loanwords, and **the JSON feedback schema matching the `Feedback` dataclass in `models.py`** (fields: `transcript`, `evaluation_text`, `model_english`, `vi_summary`). Claude must emit JSON in this exact shape; `claude_client.evaluate` parses it directly into `Feedback`. | — |
 
 Outside package: `scripts/run_bot.sh` — venv activate + `python -m english_bot`.
 
@@ -230,7 +230,7 @@ A `tests/smoke.md` checklist (not automated):
    voice (model English) + Linh voice summary + next round automatically.
 4. `/stop` → bot stops emitting; sending anything does not resume the loop.
 5. From a non-whitelist Telegram account, send `/start` → no reply.
-6. Drop network mid-round → "Claude busy" reply → reconnect → `/start` works.
+6. Drop network mid-round → "Claude busy" reply, state stays `WAITING_VOICE` → user re-sends the same voice once network returns → round resumes (no `/start` needed). Only after explicit `/stop` does the session truly end.
 
 ### Not tested
 
