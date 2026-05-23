@@ -19,7 +19,7 @@ Run these by hand on the macOS dev box with the iPhone Telegram app. Not automat
   - and **the next round starts automatically** (new 🇻🇳 + voice)
 - [ ] **Stop**: Send `/stop`. Bot replies "🛑 Stopped." Sending more voice does NOT loop.
 - [ ] **Restart**: Send `/start` after stop → fresh round emitted.
-- [ ] **Whitelist deny**: From a second Telegram account NOT in `ALLOWED_CHAT_IDS`, send `/start` → bot stays silent. Logs show "ignored non-allowed chat_id=...".
+- [ ] **Whitelist hint**: From a second Telegram account NOT in `ALLOWED_CHAT_IDS`, send `/start` (or any message/voice) → bot replies "Chat ID của bạn là: `<id>` ..." with the id tap-to-copy. Logs show "replied chat_id hint to non-allowed chat_id=...". The bot does NOT begin a session.
 - [ ] **Network drop**: While bot is in `WAITING_VOICE`, turn off macOS Wi-Fi for 30s → send voice → bot replies "Claude busy, thử lại sau vài giây.", state stays. Turn Wi-Fi back on → resend the same voice → round resumes (no /start needed).
 - [ ] **Empty voice**: Send a 0.5s silent recording → bot replies "Không nghe rõ, thử lại.", state stays WAITING_VOICE.
 - [ ] **Long voice**: Try to send a 90s voice → bot replies "Voice quá dài (max 60s), thử lại."

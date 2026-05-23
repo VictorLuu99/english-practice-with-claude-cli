@@ -1,7 +1,8 @@
 """Telegram long-polling Application + handler registration.
 
-Whitelist enforced at the handler entry — non-allowed chat_ids are silently
-ignored (no reply, only INFO log).
+Whitelist enforced at the handler entry. Non-allowed chat_ids receive a
+one-shot reply with their own chat_id so they can request whitelisting
+from the bot admin. INFO log on each drop.
 """
 import logging
 import tempfile
@@ -24,6 +25,23 @@ log = logging.getLogger(__name__)
 
 def is_allowed(chat_id: int, allowed: frozenset[int]) -> bool:
     return chat_id in allowed
+
+
+async def reply_chat_id_hint(bot, chat_id: int) -> None:
+    """Tell an unknown user their chat_id so they can ask the admin to whitelist them.
+
+    Uses HTML parse mode so the chat_id is wrapped in <code>, which makes it
+    tap-to-copy on iPhone Telegram.
+    """
+    await bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "Chat ID của bạn là:\n"
+            f"<code>{chat_id}</code>\n\n"
+            "Gửi ID này cho admin để được thêm vào whitelist."
+        ),
+        parse_mode="HTML",
+    )
 
 
 class TelegramSender:
@@ -50,14 +68,16 @@ def build_application(
     async def start_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         if not is_allowed(chat_id, allowed_chat_ids):
-            log.info("start: ignored non-allowed chat_id=%s", chat_id)
+            log.info("start: replied chat_id hint to non-allowed chat_id=%s", chat_id)
+            await reply_chat_id_hint(app.bot, chat_id)
             return
         await orchestrator.begin_session(chat_id)
 
     async def stop_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         if not is_allowed(chat_id, allowed_chat_ids):
-            log.info("stop: ignored non-allowed chat_id=%s", chat_id)
+            log.info("stop: replied chat_id hint to non-allowed chat_id=%s", chat_id)
+            await reply_chat_id_hint(app.bot, chat_id)
             return
         orchestrator.stop(chat_id)
         await app.bot.send_message(chat_id, "🛑 Stopped. /start để bắt đầu lại.")
@@ -65,7 +85,8 @@ def build_application(
     async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         if not is_allowed(chat_id, allowed_chat_ids):
-            log.info("voice: ignored non-allowed chat_id=%s", chat_id)
+            log.info("voice: replied chat_id hint to non-allowed chat_id=%s", chat_id)
+            await reply_chat_id_hint(app.bot, chat_id)
             return
         voice = update.message.voice or update.message.audio
         if voice is None:
@@ -86,7 +107,8 @@ def build_application(
     async def text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         if not is_allowed(chat_id, allowed_chat_ids):
-            log.info("text: ignored non-allowed chat_id=%s", chat_id)
+            log.info("text: replied chat_id hint to non-allowed chat_id=%s", chat_id)
+            await reply_chat_id_hint(app.bot, chat_id)
             return
         # Only react if user sent text while in a session expecting voice.
         if orchestrator.state_of(chat_id) == ChatState.WAITING_VOICE:
