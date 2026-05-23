@@ -22,6 +22,10 @@ class Feedback:
             data = json.loads(text)
         except json.JSONDecodeError as e:
             raise FeedbackParseError(f"invalid JSON: {e}") from e
+        if not isinstance(data, dict):
+            raise FeedbackParseError(
+                f"expected a JSON object, got {type(data).__name__}"
+            )
         try:
             return cls(
                 transcript=data["transcript"],
@@ -33,7 +37,7 @@ class Feedback:
             raise FeedbackParseError(f"missing field: {e.args[0]}") from e
 
 
-_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
+_FENCE_RE = re.compile(r"^\s*```\w*\s*(.*?)\s*```\s*$", re.DOTALL)
 
 
 def _strip_code_fence(text: str) -> str:

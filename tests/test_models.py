@@ -35,3 +35,21 @@ def test_feedback_from_json_extracts_from_code_fence():
     ```'''
     fb = Feedback.from_json(payload)
     assert fb.transcript == "a"
+
+
+def test_feedback_from_json_null_payload_raises():
+    with pytest.raises(FeedbackParseError, match="expected a JSON object"):
+        Feedback.from_json("null")
+
+
+def test_feedback_from_json_array_payload_raises():
+    with pytest.raises(FeedbackParseError, match="expected a JSON object"):
+        Feedback.from_json('[{"transcript": "x"}]')
+
+
+def test_feedback_from_json_uppercase_fence_works():
+    payload = '''```JSON
+    {"transcript": "u", "evaluation_text": "v", "model_english": "w", "vi_summary": "x"}
+    ```'''
+    fb = Feedback.from_json(payload)
+    assert fb.transcript == "u"
