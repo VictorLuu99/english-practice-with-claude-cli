@@ -3,6 +3,20 @@ import pytest
 from english_bot.config import Config, ConfigError
 
 
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    """Clear all config env vars before each test to isolate from the shell environment."""
+    for var in (
+        "TELEGRAM_BOT_TOKEN",
+        "ALLOWED_CHAT_IDS",
+        "WHISPER_MODEL",
+        "SPEAK_VOICE",
+        "SPEAK_EN_VOICE",
+        "LOG_LEVEL",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+
 def test_loads_all_env_vars(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "abc:xyz")
     monkeypatch.setenv("ALLOWED_CHAT_IDS", "100,200,300")
