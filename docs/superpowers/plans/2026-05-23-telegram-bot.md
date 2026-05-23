@@ -1754,7 +1754,9 @@ Run these by hand on the macOS dev box with the iPhone Telegram app. Not automat
 
 - [ ] **Step 4: Update `README.md`**
 
-Append a new section after the existing content (before `## License`):
+Append a new section after the existing content (before `## License`). The
+fenced ```` ```markdown ```` block below is for display only — when copying
+into `README.md`, strip the outer fence and paste only the content inside:
 
 ```markdown
 ## Telegram bot version (iPhone-friendly)
