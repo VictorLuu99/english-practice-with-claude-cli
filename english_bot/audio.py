@@ -55,3 +55,79 @@ def _run(cmd: list[str]) -> None:
         raise AudioError(
             f"{cmd[0]} failed (exit {result.returncode}): {detail}"
         )
+
+
+def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
+                  en_voice: str = "Samantha", rate: int = 170) -> Path:
+    """Render Vi text with `english` backtick-bracketed chunks read by en_voice.
+
+    Bilingual split: text outside backticks → vi_voice; text inside → en_voice.
+    Each chunk is `say -o` to its own aiff, converted to ogg, then concatenated
+    via ffmpeg into one final ogg. If only one chunk exists, no concat.
+    """
+    chunks = _split_backticks(text)
+    if not chunks:
+        raise AudioError("synthesize_vi got empty text")
+
+    if len(chunks) == 1:
+        is_en, chunk_text = chunks[0]
+        voice = en_voice if is_en else _resolve_vi_voice(vi_voice)
+        aiff = work_dir / "vi.aiff"
+        ogg = work_dir / "vi.ogg"
+        _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
+        _aiff_to_ogg(aiff, ogg)
+        return ogg
+
+    ogg_parts: list[Path] = []
+    for i, (is_en, chunk_text) in enumerate(chunks):
+        voice = en_voice if is_en else _resolve_vi_voice(vi_voice)
+        aiff = work_dir / f"vi_{i}.aiff"
+        ogg = work_dir / f"vi_{i}.ogg"
+        _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
+        _aiff_to_ogg(aiff, ogg)
+        ogg_parts.append(ogg)
+
+    return _concat_oggs(ogg_parts, work_dir / "vi.ogg")
+
+
+def _split_backticks(text: str) -> list[tuple[bool, str]]:
+    """Split on backticks. Returns [(is_english, chunk)]. Trims whitespace,
+    skips empty chunks. Odd-indexed parts (after split) are English."""
+    parts = text.split("`")
+    out: list[tuple[bool, str]] = []
+    for i, raw in enumerate(parts):
+        chunk = raw.strip()
+        if not chunk:
+            continue
+        out.append((i % 2 == 1, chunk))
+    return out
+
+
+def _resolve_vi_voice(requested: str) -> str:
+    """If the requested Vi voice (Enhanced) is not installed, fall back to plain Linh.
+
+    Mirrors the fallback logic in scripts/speak.sh.
+    """
+    try:
+        result = subprocess.run(["say", "-v", "?"], capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError:
+        return "Linh"
+    voices = result.stdout
+    # match "Linh (Enhanced)" only if it appears as a voice name line prefix.
+    if any(line.startswith(requested) for line in voices.splitlines()):
+        return requested
+    return "Linh"
+
+
+def _concat_oggs(parts: list[Path], out_path: Path) -> Path:
+    """Use ffmpeg concat demuxer to join multiple oggs in order."""
+    listfile = out_path.with_suffix(".list")
+    listfile.write_text("".join(f"file '{p}'\n" for p in parts))
+    _run([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-f", "concat", "-safe", "0",
+        "-i", str(listfile),
+        "-c", "copy",
+        str(out_path),
+    ])
+    return out_path

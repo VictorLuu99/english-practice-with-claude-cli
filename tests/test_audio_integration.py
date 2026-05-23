@@ -26,3 +26,51 @@ def test_synthesize_en_produces_valid_ogg(tmp_path):
     )
     duration = float(result.stdout.strip())
     assert duration > 0.3  # at least some content
+
+
+from english_bot.audio import synthesize_vi, _split_backticks
+
+
+def test_split_backticks_alternates():
+    parts = _split_backticks("Hôm nay tôi có `meeting` về `deadline` mới.")
+    # Returns list[(is_english, text)]
+    assert parts == [
+        (False, "Hôm nay tôi có"),
+        (True, "meeting"),
+        (False, "về"),
+        (True, "deadline"),
+        (False, "mới."),
+    ]
+
+
+def test_split_backticks_no_english():
+    parts = _split_backticks("Câu thuần Việt không có backticks.")
+    assert parts == [(False, "Câu thuần Việt không có backticks.")]
+
+
+def test_split_backticks_strips_whitespace_only_chunks():
+    parts = _split_backticks("`hello`")
+    assert parts == [(True, "hello")]
+
+
+@requires_macos_audio
+def test_synthesize_vi_bilingual_produces_ogg(tmp_path):
+    text = "Hôm nay tôi có `meeting` về `deadline` mới."
+    out = synthesize_vi(text, tmp_path, vi_voice="Linh", en_voice="Samantha", rate=170)
+    assert out.exists()
+    assert out.suffix == ".ogg"
+    # Concat result should be > sum of individual chunk minimum durations
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(out)],
+        check=True, capture_output=True, text=True,
+    )
+    duration = float(result.stdout.strip())
+    assert duration > 1.0  # multi-chunk Vi+En sentence
+
+
+@requires_macos_audio
+def test_synthesize_vi_pure_vietnamese_no_concat(tmp_path):
+    out = synthesize_vi("Xin chào, hôm nay trời đẹp quá.", tmp_path,
+                        vi_voice="Linh", en_voice="Samantha", rate=170)
+    assert out.exists()
