@@ -1,25 +1,50 @@
-"""Subprocess wrappers for macOS audio I/O.
+"""Subprocess wrappers for macOS audio I/O + optional ElevenLabs TTS.
 
 Pipeline:
-  - synthesize_en/vi: `say -o aiff` → `ffmpeg → ogg/opus` (Telegram-friendly)
+  - synthesize_en/vi: if ELEVENLABS_API_KEY is set → try ElevenLabs first
+    (Adam voice via multilingual model — unified Vi+En voice with English
+    accent on English words). On any failure (auth, quota, network),
+    silently fall back to:
+       `say -o aiff` → `ffmpeg → ogg/opus`  (Telegram-friendly)
   - transcribe: incoming ogg → `ffmpeg → 16kHz mono wav` → `whisper-cli` → text
 
 No live mic capture (Telegram delivers pre-recorded voice notes), so sox/rec
 is NOT used here. The terminal scripts `speak.sh` and `record.sh` stay
 untouched for the slash-command flow.
 """
+import logging
+import os
 import re
 import subprocess
 from pathlib import Path
+
+import httpx
+
+log = logging.getLogger(__name__)
 
 
 class AudioError(RuntimeError):
     """Raised when an audio subprocess fails."""
 
 
+class ElevenLabsError(RuntimeError):
+    """Raised when an ElevenLabs API call fails (auth, quota, network, etc)."""
+
+
+# Adam — popular ElevenLabs preset voice ID. Override via ELEVENLABS_VOICE_ID env.
+_ELEVENLABS_DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+# Multilingual v2 handles Vi + En with a single voice. Override via ELEVENLABS_MODEL.
+_ELEVENLABS_DEFAULT_MODEL = "eleven_multilingual_v2"
+_ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+
+
 def synthesize_en(text: str, work_dir: Path, voice: str = "Samantha",
                   rate: int = 140) -> Path:
-    """Render plain English to an Opus-in-OGG file using macOS `say` + ffmpeg.
+    """Render plain English to an Opus-in-OGG file.
+
+    If ELEVENLABS_API_KEY is set, try ElevenLabs (Adam by default) first.
+    Otherwise — or on any ElevenLabs failure (quota exhausted, network,
+    auth) — fall back to macOS `say` + ffmpeg.
 
     Args:
         text: English text to synthesize (no backtick splitting).
@@ -27,16 +52,109 @@ def synthesize_en(text: str, work_dir: Path, voice: str = "Samantha",
             Caller owns cleanup; the intermediate .aiff is intentionally
             left in work_dir (don't add unlink() here — synthesize_vi in
             Task 6 keeps per-chunk .aiff files in the same dir for concat).
-        voice: macOS voice name (default Samantha).
-        rate: words per minute (default 140 — slow for listening practice).
+        voice: macOS voice name for `say` fallback (default Samantha).
+        rate: words per minute for `say` fallback (default 140 — slow for
+            listening practice). Ignored by ElevenLabs.
 
     Returns:
         Path to the .ogg file inside work_dir.
     """
+    el = _try_elevenlabs(text, work_dir)
+    if el is not None:
+        return el
+
     aiff_path = work_dir / "en.aiff"
     ogg_path = work_dir / "en.ogg"
     _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff_path), text])
     _aiff_to_ogg(aiff_path, ogg_path)
+    return ogg_path
+
+
+def _try_elevenlabs(text: str, work_dir: Path) -> Path | None:
+    """Try to synthesize via ElevenLabs. Return Path on success, None on
+    any failure (caller falls back to macOS `say`).
+
+    Reads `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL`
+    from env. If `ELEVENLABS_API_KEY` is empty/missing, returns None
+    immediately without logging (assumed: user opted out of ElevenLabs).
+    """
+    api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    if not api_key:
+        return None
+    voice_id = (
+        os.environ.get("ELEVENLABS_VOICE_ID", "").strip()
+        or _ELEVENLABS_DEFAULT_VOICE_ID
+    )
+    model_id = (
+        os.environ.get("ELEVENLABS_MODEL", "").strip()
+        or _ELEVENLABS_DEFAULT_MODEL
+    )
+    try:
+        return _synthesize_via_elevenlabs(
+            text, work_dir, api_key=api_key, voice_id=voice_id, model_id=model_id,
+        )
+    except Exception as e:
+        log.warning(
+            "elevenlabs failed (falling back to macOS say): %s", e,
+        )
+        return None
+
+
+def _synthesize_via_elevenlabs(
+    text: str,
+    work_dir: Path,
+    *,
+    api_key: str,
+    voice_id: str,
+    model_id: str,
+) -> Path:
+    """Call ElevenLabs TTS and return Path to an ogg/opus file.
+
+    Strips backticks before sending (they're a Telegram-display convention
+    from Claude; Adam doesn't need them — multilingual model handles
+    Vi + English with a single voice). Raises ElevenLabsError on any
+    non-2xx response or network failure.
+    """
+    clean = text.replace("`", "").strip()
+    if not clean:
+        raise ElevenLabsError("empty text after stripping backticks")
+
+    url = f"{_ELEVENLABS_BASE_URL}/{voice_id}"
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    payload = {
+        "text": clean,
+        "model_id": model_id,
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+    }
+
+    try:
+        r = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+    except httpx.HTTPError as e:
+        raise ElevenLabsError(f"network: {e}") from e
+
+    if r.status_code == 401:
+        raise ElevenLabsError("auth failed (check ELEVENLABS_API_KEY)")
+    if r.status_code in (402, 429):
+        raise ElevenLabsError(
+            f"quota/rate exhausted (HTTP {r.status_code}) — falling back to `say`"
+        )
+    if r.status_code >= 400:
+        raise ElevenLabsError(f"HTTP {r.status_code}: {r.text[:200]}")
+
+    mp3_path = work_dir / "el.mp3"
+    mp3_path.write_bytes(r.content)
+
+    ogg_path = work_dir / "el.ogg"
+    _run([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", str(mp3_path),
+        "-c:a", "libopus", "-b:a", "48k",
+        str(ogg_path),
+    ])
     return ogg_path
 
 
@@ -60,13 +178,21 @@ def _run(cmd: list[str]) -> None:
 
 def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
                   en_voice: str = "Samantha", rate: int = 170) -> Path:
-    """Render Vi text with `english` backtick-bracketed chunks read by en_voice.
+    """Render Vi text (possibly mixed with English in backticks) to ogg.
 
-    Bilingual split: text outside backticks → vi_voice; text inside → en_voice.
-    Each chunk is `say -o` to its own aiff, converted to ogg, then concatenated
-    via ffmpeg into one final ogg. If only one chunk exists, no concat.
-    Raises AudioError if the input has an odd number of backticks (malformed).
+    If ELEVENLABS_API_KEY is set, try ElevenLabs first — a single multilingual
+    voice (Adam by default) reads the whole sentence with proper accents on
+    each language. On any failure (quota exhausted, network), fall back to
+    bilingual macOS `say`: Vi chunks → vi_voice (Linh), English chunks inside
+    backticks → en_voice (Samantha), concatenated via ffmpeg.
+
+    Raises AudioError if the input has an odd number of backticks (malformed)
+    AND we're on the `say` fallback path.
     """
+    el = _try_elevenlabs(text, work_dir)
+    if el is not None:
+        return el
+
     chunks = _split_backticks(text)
     if not chunks:
         raise AudioError("synthesize_vi got empty text")

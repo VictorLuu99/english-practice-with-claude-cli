@@ -106,6 +106,15 @@ terminal. Bot service runs on this macOS host; iPhone is the client.
    python3.11 -m venv .venv
    .venv/bin/pip install -e ".[dev]"
    ```
+5. (Optional) ElevenLabs for a single unified voice (Adam) across Vi + English:
+   - Sign up at [elevenlabs.io](https://elevenlabs.io) (free tier ≈ 10k chars/month ≈ 20–30 rounds)
+   - Profile → API Keys → create → paste into `.env`:
+     ```
+     ELEVENLABS_API_KEY=sk_...
+     ```
+   - Leave empty to stick with macOS `say` (bilingual Linh + Samantha)
+   - On any ElevenLabs failure (quota, auth, network) the bot **auto-falls
+     back** to `say` for that round — you don't lose the session
 
 ### Run
 

@@ -76,7 +76,7 @@ def test_synthesize_vi_pure_vietnamese_no_concat(tmp_path):
     assert out.exists()
 
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from english_bot.audio import _resolve_vi_voice, AudioError
 
 
@@ -108,6 +108,62 @@ def test_resolve_vi_voice_subprocess_failure_falls_back():
     """If `say -v ?` itself fails, return 'Linh' fallback."""
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "say")):
         assert _resolve_vi_voice("Linh (Enhanced)") == "Linh"
+
+
+# ─── ElevenLabs path ──────────────────────────────────────────────────────
+from english_bot.audio import _try_elevenlabs, _synthesize_via_elevenlabs, ElevenLabsError
+
+
+def test_try_elevenlabs_returns_none_when_no_api_key(tmp_path, monkeypatch):
+    """No ELEVENLABS_API_KEY env → silently return None (caller falls back)."""
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert _try_elevenlabs("Xin chào `world`", tmp_path) is None
+
+
+def test_try_elevenlabs_returns_none_on_api_failure(tmp_path, monkeypatch):
+    """When the API call raises (any reason), _try_elevenlabs swallows and
+    returns None so the caller falls back to macOS `say`."""
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "fake-key")
+    monkeypatch.setattr(
+        "english_bot.audio._synthesize_via_elevenlabs",
+        MagicMock(side_effect=ElevenLabsError("quota exhausted")),
+    )
+    assert _try_elevenlabs("Xin chào", tmp_path) is None
+
+
+def test_synthesize_via_elevenlabs_auth_failure_raises():
+    """HTTP 401 from ElevenLabs → ElevenLabsError with auth message."""
+    fake_response = MagicMock()
+    fake_response.status_code = 401
+    fake_response.text = "Invalid API key"
+    with patch("httpx.post", return_value=fake_response):
+        with pytest.raises(ElevenLabsError, match="auth failed"):
+            _synthesize_via_elevenlabs(
+                "test", Path("/tmp"),
+                api_key="bad", voice_id="v", model_id="m",
+            )
+
+
+def test_synthesize_via_elevenlabs_quota_exhausted_raises():
+    """HTTP 429 (rate/quota) → ElevenLabsError mentioning quota."""
+    fake_response = MagicMock()
+    fake_response.status_code = 429
+    fake_response.text = "Rate limit"
+    with patch("httpx.post", return_value=fake_response):
+        with pytest.raises(ElevenLabsError, match="quota"):
+            _synthesize_via_elevenlabs(
+                "test", Path("/tmp"),
+                api_key="x", voice_id="v", model_id="m",
+            )
+
+
+def test_synthesize_via_elevenlabs_empty_after_strip_raises(tmp_path):
+    """Empty / backticks-only text → ElevenLabsError before any HTTP call."""
+    with pytest.raises(ElevenLabsError, match="empty text"):
+        _synthesize_via_elevenlabs(
+            "```", tmp_path,
+            api_key="x", voice_id="v", model_id="m",
+        )
 
 
 import os
