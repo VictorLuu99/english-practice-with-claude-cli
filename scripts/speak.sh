@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Usage: ./speak.sh "Câu tiếng Việt cần đọc."
+# Usage: ./speak.sh "Câu cần đọc."
 # Env:
-#   SPEAK_VOICE  macOS voice name (default: "Linh (Enhanced)" — falls back to Linh if not installed)
-#   SPEAK_RATE   words per minute (default: 265 — ~1.5x Linh's natural pace)
+#   SPEAK_VOICE     primary voice (default: "Linh (Enhanced)" — falls back to Linh)
+#   SPEAK_EN_VOICE  voice for English fragments when primary is Linh* (default: Samantha)
+#   SPEAK_RATE      words per minute (default: 170 — natural, unhurried pace)
 set -euo pipefail
 
 TEXT="${1:?Usage: speak.sh \"text\"}"
 VOICE="${SPEAK_VOICE:-Linh (Enhanced)}"
-RATE="${SPEAK_RATE:-265}"
+EN_VOICE="${SPEAK_EN_VOICE:-Samantha}"
+RATE="${SPEAK_RATE:-170}"
 
 # Graceful fallback: if requested voice isn't installed, drop to plain Linh.
 # `say -v "?"` lines look like: `Linh (Enhanced)     vi_VN    # Xin chào!...`
@@ -18,4 +20,25 @@ if ! say -v "?" | sed -E 's/[[:space:]]+[a-z]+_[A-Z]+[[:space:]]+#.*$//' | grep 
   VOICE="Linh"
 fi
 
-say -v "$VOICE" -r "$RATE" "$TEXT"
+# When primary voice is Linh (Vietnamese), text inside backticks is read by
+# the English voice. Convention: callers wrap English words/phrases in
+# backticks, e.g. "Hôm nay tôi có `meeting` về `deadline` mới."
+if [[ "$VOICE" == Linh* ]]; then
+  # Split on backticks: even-indexed parts are Vietnamese, odd-indexed are English.
+  BT=$'\x60'
+  IFS="$BT" read -ra PARTS <<< "$TEXT"
+  for i in "${!PARTS[@]}"; do
+    chunk="${PARTS[$i]}"
+    # Trim leading/trailing whitespace
+    chunk="${chunk#"${chunk%%[![:space:]]*}"}"
+    chunk="${chunk%"${chunk##*[![:space:]]}"}"
+    [[ -z "$chunk" ]] && continue
+    if (( i % 2 == 1 )); then
+      say -v "$EN_VOICE" -r "$RATE" "$chunk"
+    else
+      say -v "$VOICE" -r "$RATE" "$chunk"
+    fi
+  done
+else
+  say -v "$VOICE" -r "$RATE" "$TEXT"
+fi

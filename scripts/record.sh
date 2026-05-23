@@ -5,14 +5,14 @@
 #
 # Env:
 #   WHISPER_MODEL        path to ggml model (default: ~/.cache/whisper-cpp/ggml-small.en.bin)
-#   RECORD_MAX_SECONDS   safety cap on recording length (default: 15)
-#   SILENCE_TAIL         seconds of silence before stop (default: 1.5)
+#   RECORD_MAX_SECONDS   safety cap on recording length (default: 45)
+#   SILENCE_TAIL         seconds of silence before stop (default: 2.5)
 #   SILENCE_THRESHOLD    sox silence threshold (default: 3%)
 set -euo pipefail
 
 MODEL="${WHISPER_MODEL:-$HOME/.cache/whisper-cpp/ggml-small.en.bin}"
-MAX_SECONDS="${RECORD_MAX_SECONDS:-15}"
-SILENCE_TAIL="${SILENCE_TAIL:-1.5}"
+MAX_SECONDS="${RECORD_MAX_SECONDS:-45}"
+SILENCE_TAIL="${SILENCE_TAIL:-2.5}"
 SILENCE_THRESHOLD="${SILENCE_THRESHOLD:-3%}"
 
 if [[ ! -f "$MODEL" ]]; then
