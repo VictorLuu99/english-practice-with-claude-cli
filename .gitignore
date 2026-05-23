@@ -6,3 +6,13 @@
 
 # Whisper output side-files (just in case)
 *.wav.out.txt
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Local secrets
+.env
