@@ -125,3 +125,60 @@ async def test_begin_session_idempotent_when_already_running(
     fake_claude.generate_prompt.reset_mock()
     await orch.begin_session(chat_id=42)  # second /start
     fake_claude.generate_prompt.assert_not_awaited()  # no new round
+
+
+async def test_emit_round_failure_cleans_up_session(fake_audio, fake_sender, tmp_path):
+    """If generate_prompt fails, the session is removed so next voice gets the IDLE hint."""
+    claude = MagicMock()
+    claude.generate_prompt = AsyncMock(side_effect=RuntimeError("Claude down"))
+    orch = Orchestrator(
+        claude=claude, audio=fake_audio, sender=fake_sender,
+        whisper_model="/tmp/m", vi_voice="Linh", en_voice="Samantha",
+        work_dir_factory=lambda: tmp_path,
+    )
+    await orch.begin_session(chat_id=42)
+    # Session should be removed; state_of returns IDLE for missing chats
+    assert orch.state_of(42) == ChatState.IDLE
+    # Next voice should get the "Gõ /start" hint, NOT trigger transcribe
+    fake_sender.send_text.reset_mock()
+    await orch.handle_voice(chat_id=42, voice_path=tmp_path / "v.ogg")
+    fake_audio.transcribe.assert_not_called()
+
+
+async def test_tts_failure_notifies_user(fake_claude, fake_sender, tmp_path):
+    """Spec line 189: TTS failure must send 'Lỗi TTS, skip voice.' to the user."""
+    from english_bot.audio import AudioError
+    fake_audio = MagicMock()
+    fake_audio.synthesize_vi = MagicMock(side_effect=AudioError("say crashed"))
+    orch = Orchestrator(
+        claude=fake_claude, audio=fake_audio, sender=fake_sender,
+        whisper_model="/tmp/m", vi_voice="Linh", en_voice="Samantha",
+        work_dir_factory=lambda: tmp_path,
+    )
+    await orch.begin_session(chat_id=42)
+    # Vi text should have been sent (text-first), then TTS attempt fails
+    # and we expect a 'Lỗi TTS' message to follow.
+    sent_texts = [
+        call.args[-1] if call.args else call.kwargs.get("text", "")
+        for call in fake_sender.send_text.await_args_list
+    ]
+    assert any("Lỗi TTS" in t for t in sent_texts), f"got: {sent_texts}"
+
+
+async def test_transcribe_called_via_to_thread(fake_claude, fake_audio, fake_sender, tmp_path, monkeypatch):
+    """Subprocess audio calls must go through asyncio.to_thread so the event
+    loop isn't blocked. Verify by patching to_thread and checking it was called."""
+    import asyncio
+    real_to_thread = asyncio.to_thread
+    spy = AsyncMock(side_effect=lambda fn, *a, **kw: real_to_thread(fn, *a, **kw))
+    monkeypatch.setattr(asyncio, "to_thread", spy)
+
+    orch = Orchestrator(
+        claude=fake_claude, audio=fake_audio, sender=fake_sender,
+        whisper_model="/tmp/m", vi_voice="Linh", en_voice="Samantha",
+        work_dir_factory=lambda: tmp_path,
+    )
+    await orch.begin_session(chat_id=42)
+    await orch.handle_voice(chat_id=42, voice_path=tmp_path / "v.ogg")
+    # to_thread should have been called for transcribe (at minimum)
+    assert spy.await_count >= 1

@@ -1,7 +1,8 @@
 """Per-chat state machine driving the Vi prompt → Eng answer → feedback loop."""
+import asyncio
 import logging
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 from typing import Callable, Protocol
@@ -91,7 +92,9 @@ class Orchestrator:
             return
 
         try:
-            transcript = self._audio.transcribe(voice_path, model_path=self._whisper_model)
+            transcript = await asyncio.to_thread(
+                self._audio.transcribe, voice_path, model_path=self._whisper_model
+            )
         except AudioError as e:
             log.warning("transcribe failed (chat=%s): %s", chat_id, e)
             await self._sender.send_text(chat_id, "Lỗi xử lý voice, thử lại.")
@@ -126,10 +129,16 @@ class Orchestrator:
             vi_text = await self._claude.generate_prompt()
         except Exception as e:
             log.warning("generate_prompt failed (chat=%s): %s", chat_id, e)
-            await self._sender.send_text(chat_id, "Claude busy, thử lại sau vài giây.")
+            await self._sender.send_text(
+                chat_id, "Claude busy. Gõ /start lại để thử lần nữa."
+            )
+            self._sessions.pop(chat_id, None)
             return
         if not vi_text:
-            await self._sender.send_text(chat_id, "Claude trả về rỗng, thử lại.")
+            await self._sender.send_text(
+                chat_id, "Claude trả về rỗng. Gõ /start lại để thử lần nữa."
+            )
+            self._sessions.pop(chat_id, None)
             return
 
         self._sessions[chat_id] = _Session(
@@ -141,12 +150,14 @@ class Orchestrator:
         with self._make_work_dir() as work:
             work = Path(work)  # normalise — TemporaryDirectory returns str, _FactoryContext returns Path
             try:
-                ogg = self._audio.synthesize_vi(
+                ogg = await asyncio.to_thread(
+                    self._audio.synthesize_vi,
                     vi_text, work, vi_voice=self._vi_voice, en_voice=self._en_voice,
                 )
                 await self._sender.send_voice(chat_id, ogg)
             except AudioError as e:
                 log.warning("synthesize_vi failed (chat=%s): %s", chat_id, e)
+                await self._sender.send_text(chat_id, "Lỗi TTS, skip voice.")
                 # Fallback: text-only. State still WAITING_VOICE.
 
     async def _deliver_feedback(self, chat_id: int, fb: Feedback) -> None:
@@ -154,23 +165,27 @@ class Orchestrator:
         with self._make_work_dir() as work:
             work = Path(work)  # normalise
             try:
-                model_ogg = self._audio.synthesize_en(
+                model_ogg = await asyncio.to_thread(
+                    self._audio.synthesize_en,
                     fb.model_english, work, voice=self._en_voice, rate=140,
                 )
                 await self._sender.send_voice(chat_id, model_ogg)
             except AudioError as e:
                 log.warning("synthesize_en (model) failed (chat=%s): %s", chat_id, e)
+                await self._sender.send_text(chat_id, "Lỗi TTS, skip voice.")
             try:
                 summary_text = fb.vi_summary
                 if "Câu tiếp theo" not in summary_text:
                     summary_text = summary_text.rstrip(". ") + ". Câu tiếp theo."
-                vi_ogg = self._audio.synthesize_vi(
+                vi_ogg = await asyncio.to_thread(
+                    self._audio.synthesize_vi,
                     summary_text, work,
                     vi_voice=self._vi_voice, en_voice=self._en_voice,
                 )
                 await self._sender.send_voice(chat_id, vi_ogg)
             except AudioError as e:
                 log.warning("synthesize_vi (summary) failed (chat=%s): %s", chat_id, e)
+                await self._sender.send_text(chat_id, "Lỗi TTS, skip voice.")
 
     def _make_work_dir(self):
         if self._work_dir_factory is not None:
