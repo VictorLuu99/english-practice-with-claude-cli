@@ -23,6 +23,9 @@ def synthesize_en(text: str, work_dir: Path, voice: str = "Samantha",
     Args:
         text: English text to synthesize (no backtick splitting).
         work_dir: existing directory for intermediate + output files.
+            Caller owns cleanup; the intermediate .aiff is intentionally
+            left in work_dir (don't add unlink() here — synthesize_vi in
+            Task 6 keeps per-chunk .aiff files in the same dir for concat).
         voice: macOS voice name (default Samantha).
         rate: words per minute (default 140 — slow for listening practice).
 
@@ -48,6 +51,7 @@ def _aiff_to_ogg(aiff_path: Path, ogg_path: Path) -> None:
 def _run(cmd: list[str]) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
         raise AudioError(
-            f"{cmd[0]} failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"{cmd[0]} failed (exit {result.returncode}): {detail}"
         )
