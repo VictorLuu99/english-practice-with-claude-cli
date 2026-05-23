@@ -65,6 +65,14 @@ class Orchestrator:
         self._sessions: dict[int, _Session] = {}
         self._work_dir_factory = work_dir_factory
 
+    def set_sender(self, sender: "Sender") -> None:
+        """Inject (or replace) the Sender adapter after construction.
+
+        Useful when the Telegram bot object is only available after
+        ApplicationBuilder().build() completes.
+        """
+        self._sender = sender
+
     def state_of(self, chat_id: int) -> ChatState:
         s = self._sessions.get(chat_id)
         return s.state if s else ChatState.IDLE
