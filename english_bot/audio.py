@@ -159,9 +159,24 @@ def _synthesize_via_elevenlabs(
 
 
 def _aiff_to_ogg(aiff_path: Path, ogg_path: Path) -> None:
+    """Convert macOS `say` aiff → Opus-in-OGG, trimming silence at both ends.
+
+    `say` leaves ~50–100 ms of silence at the start and end of every clip,
+    which produces an audible gap when synthesize_vi concatenates Linh ↔
+    Samantha chunks. We strip those silences via the `silenceremove`
+    filter (areverse trick to also process the tail). Single-chunk paths
+    benefit too — voice messages on Telegram now start without dead air.
+    """
+    silence_trim = (
+        "silenceremove=start_periods=1:start_duration=0.05:start_threshold=-40dB:detection=peak,"
+        "areverse,"
+        "silenceremove=start_periods=1:start_duration=0.05:start_threshold=-40dB:detection=peak,"
+        "areverse"
+    )
     _run([
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", str(aiff_path),
+        "-af", silence_trim,
         "-c:a", "libopus", "-b:a", "48k",
         str(ogg_path),
     ])
