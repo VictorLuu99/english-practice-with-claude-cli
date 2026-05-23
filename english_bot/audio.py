@@ -149,3 +149,35 @@ def _concat_oggs(parts: list[Path], out_path: Path) -> Path:
         str(out_path),
     ])
     return out_path
+
+
+def transcribe(audio_path: Path, model_path: str) -> str:
+    """Transcribe an audio file (ogg, wav, m4a…) to English text via whisper-cli.
+
+    Converts the input to 16kHz mono wav via ffmpeg, then runs whisper-cli with
+    the given model. Returns the trimmed transcript (may be empty string if
+    nothing was detected).
+    """
+    work_dir = audio_path.parent
+    wav_path = work_dir / "_whisper_in.wav"
+    _run([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", str(audio_path),
+        "-ac", "1", "-ar", "16000",
+        str(wav_path),
+    ])
+    out_prefix = work_dir / "_whisper_out"
+    # whisper-cli writes <prefix>.txt containing the transcript.
+    _run([
+        "whisper-cli",
+        "-m", model_path,
+        "-f", str(wav_path),
+        "-otxt",
+        "-of", str(out_prefix),
+        "-nt",       # no timestamps
+        "-l", "en",  # force English
+    ])
+    txt_path = out_prefix.with_suffix(".txt")
+    if not txt_path.exists():
+        raise AudioError(f"whisper-cli produced no output: {txt_path}")
+    return txt_path.read_text(encoding="utf-8").strip()

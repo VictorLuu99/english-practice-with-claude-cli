@@ -1,5 +1,6 @@
-# Audio tmp files from record.sh
+# Audio tmp files from record.sh (but not test fixtures)
 *.wav
+!tests/fixtures/*.wav
 
 # macOS metadata
 .DS_Store

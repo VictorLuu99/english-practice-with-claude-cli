@@ -108,3 +108,36 @@ def test_resolve_vi_voice_subprocess_failure_falls_back():
     """If `say -v ?` itself fails, return 'Linh' fallback."""
     with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "say")):
         assert _resolve_vi_voice("Linh (Enhanced)") == "Linh"
+
+
+import os
+from english_bot.audio import transcribe
+
+requires_whisper = pytest.mark.skipif(
+    not shutil.which("whisper-cli") or not os.environ.get("WHISPER_MODEL"),
+    reason="requires whisper-cli on PATH and WHISPER_MODEL env",
+)
+
+
+@requires_macos_audio
+@requires_whisper
+def test_transcribe_returns_sensible_text(tmp_path):
+    # Copy fixture into work_dir so transcribe path mirrors real usage
+    src = Path("tests/fixtures/sample_voice.wav")
+    work = tmp_path / "in.wav"
+    work.write_bytes(src.read_bytes())
+
+    transcript = transcribe(work, model_path=os.environ["WHISPER_MODEL"])
+    lower = transcript.lower()
+    # Tolerate Whisper quirks but expect key content words.
+    assert "fox" in lower or "brown" in lower
+    assert "lazy" in lower or "dog" in lower
+
+
+@requires_macos_audio
+@requires_whisper
+def test_transcribe_ogg_input_is_converted(tmp_path):
+    # Synthesize a small ogg then transcribe it
+    ogg = synthesize_en("Testing one two three.", tmp_path, voice="Samantha", rate=160)
+    transcript = transcribe(ogg, model_path=os.environ["WHISPER_MODEL"])
+    assert "testing" in transcript.lower() or "one" in transcript.lower()
