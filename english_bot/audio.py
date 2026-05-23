@@ -8,6 +8,7 @@ No live mic capture (Telegram delivers pre-recorded voice notes), so sox/rec
 is NOT used here. The terminal scripts `speak.sh` and `record.sh` stay
 untouched for the slash-command flow.
 """
+import re
 import subprocess
 from pathlib import Path
 
@@ -64,14 +65,17 @@ def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
     Bilingual split: text outside backticks → vi_voice; text inside → en_voice.
     Each chunk is `say -o` to its own aiff, converted to ogg, then concatenated
     via ffmpeg into one final ogg. If only one chunk exists, no concat.
+    Raises AudioError if the input has an odd number of backticks (malformed).
     """
     chunks = _split_backticks(text)
     if not chunks:
         raise AudioError("synthesize_vi got empty text")
 
+    resolved_vi_voice = _resolve_vi_voice(vi_voice)
+
     if len(chunks) == 1:
         is_en, chunk_text = chunks[0]
-        voice = en_voice if is_en else _resolve_vi_voice(vi_voice)
+        voice = en_voice if is_en else resolved_vi_voice
         aiff = work_dir / "vi.aiff"
         ogg = work_dir / "vi.ogg"
         _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
@@ -80,7 +84,7 @@ def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
 
     ogg_parts: list[Path] = []
     for i, (is_en, chunk_text) in enumerate(chunks):
-        voice = en_voice if is_en else _resolve_vi_voice(vi_voice)
+        voice = en_voice if is_en else resolved_vi_voice
         aiff = work_dir / f"vi_{i}.aiff"
         ogg = work_dir / f"vi_{i}.ogg"
         _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
@@ -92,7 +96,15 @@ def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
 
 def _split_backticks(text: str) -> list[tuple[bool, str]]:
     """Split on backticks. Returns [(is_english, chunk)]. Trims whitespace,
-    skips empty chunks. Odd-indexed parts (after split) are English."""
+    skips empty chunks. Odd-indexed parts (after split) are English.
+
+    Raises AudioError if `text` contains an odd number of backticks
+    (malformed input — would misclassify the unmatched tail as English).
+    """
+    if text.count("`") % 2 != 0:
+        raise AudioError(
+            f"synthesize_vi: unmatched backtick in text (count={text.count('`')})"
+        )
     parts = text.split("`")
     out: list[tuple[bool, str]] = []
     for i, raw in enumerate(parts):
@@ -103,20 +115,26 @@ def _split_backticks(text: str) -> list[tuple[bool, str]]:
     return out
 
 
-def _resolve_vi_voice(requested: str) -> str:
-    """If the requested Vi voice (Enhanced) is not installed, fall back to plain Linh.
+_VOICE_LINE_LOCALE_RE = re.compile(r"\s+[a-z]+_[A-Z]+\s+#.*$")
 
-    Mirrors the fallback logic in scripts/speak.sh.
+
+def _resolve_vi_voice(requested: str) -> str:
+    """If the requested Vi voice is not installed, fall back to plain Linh.
+
+    Mirrors the exact-match logic in scripts/speak.sh: strip locale/comment
+    suffix from each `say -v ?` line, then match the requested name exactly.
     """
     try:
-        result = subprocess.run(["say", "-v", "?"], capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["say", "-v", "?"], capture_output=True, text=True, check=True,
+        )
     except subprocess.CalledProcessError:
         return "Linh"
-    voices = result.stdout
-    # match "Linh (Enhanced)" only if it appears as a voice name line prefix.
-    if any(line.startswith(requested) for line in voices.splitlines()):
-        return requested
-    return "Linh"
+    names = {
+        _VOICE_LINE_LOCALE_RE.sub("", line).strip()
+        for line in result.stdout.splitlines()
+    }
+    return requested if requested in names else "Linh"
 
 
 def _concat_oggs(parts: list[Path], out_path: Path) -> Path:
