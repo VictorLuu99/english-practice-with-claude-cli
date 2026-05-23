@@ -1,13 +1,9 @@
 """Entry point: `python -m english_bot`."""
 import logging
-import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from english_bot.audio import (  # noqa: F401 (module-level import for orchestrator)
-    AudioError,
-)
 from english_bot import audio as audio_module
 from english_bot.claude_client import ClaudeClient
 from english_bot.config import Config, ConfigError

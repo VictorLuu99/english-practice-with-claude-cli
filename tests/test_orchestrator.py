@@ -71,7 +71,9 @@ async def test_voice_reply_triggers_feedback_and_next_round(
     fake_sender.send_voice.reset_mock()
     fake_audio.synthesize_vi.reset_mock()
 
-    await orch.handle_voice(chat_id=42, voice_path=tmp_path / "user.ogg")
+    voice_file = tmp_path / "user.ogg"
+    voice_file.touch()
+    await orch.handle_voice(chat_id=42, voice_path=voice_file)
 
     fake_audio.transcribe.assert_called_once()
     fake_claude.evaluate.assert_awaited_once()
@@ -179,6 +181,8 @@ async def test_transcribe_called_via_to_thread(fake_claude, fake_audio, fake_sen
         work_dir_factory=lambda: tmp_path,
     )
     await orch.begin_session(chat_id=42)
-    await orch.handle_voice(chat_id=42, voice_path=tmp_path / "v.ogg")
+    voice_file = tmp_path / "v.ogg"
+    voice_file.touch()
+    await orch.handle_voice(chat_id=42, voice_path=voice_file)
     # to_thread should have been called for transcribe (at minimum)
     assert spy.await_count >= 1

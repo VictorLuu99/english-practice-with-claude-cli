@@ -60,7 +60,7 @@ def build_application(
             log.info("stop: ignored non-allowed chat_id=%s", chat_id)
             return
         orchestrator.stop(chat_id)
-        await app.bot.send_message(chat_id, "Stopped. /start de bat dau lai.")
+        await app.bot.send_message(chat_id, "🛑 Stopped. /start để bắt đầu lại.")
 
     async def voice_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
@@ -71,7 +71,7 @@ def build_application(
         if voice is None:
             return
         if voice.duration and voice.duration > 60:
-            await app.bot.send_message(chat_id, "Voice qua dai (max 60s), thu lai.")
+            await app.bot.send_message(chat_id, "Voice quá dài (max 60s), thử lại.")
             return
         # Download to a temp file
         tg_file = await voice.get_file()
@@ -92,7 +92,7 @@ def build_application(
         if orchestrator.state_of(chat_id) == ChatState.WAITING_VOICE:
             await app.bot.send_message(
                 chat_id,
-                "Dang cho voice. Long-press mic de ghi, hoac /stop de dung.",
+                "Đang chờ voice. Long-press 🎙 để ghi, hoặc /stop để dừng.",
             )
 
     app.add_handler(CommandHandler("start", start_handler))

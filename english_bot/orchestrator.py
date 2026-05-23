@@ -1,6 +1,7 @@
 """Per-chat state machine driving the Vi prompt → Eng answer → feedback loop."""
 import asyncio
 import logging
+import shutil
 import tempfile
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -100,9 +101,12 @@ class Orchestrator:
             return
 
         try:
-            transcript = await asyncio.to_thread(
-                self._audio.transcribe, voice_path, model_path=self._whisper_model
-            )
+            with tempfile.TemporaryDirectory(prefix="english_bot_tr_") as tr_work:
+                tr_voice = Path(tr_work) / "user.ogg"
+                shutil.copy2(voice_path, tr_voice)
+                transcript = await asyncio.to_thread(
+                    self._audio.transcribe, tr_voice, model_path=self._whisper_model
+                )
         except AudioError as e:
             log.warning("transcribe failed (chat=%s): %s", chat_id, e)
             await self._sender.send_text(chat_id, "Lỗi xử lý voice, thử lại.")
