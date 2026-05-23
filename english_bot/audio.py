@@ -59,36 +59,60 @@ def _run(cmd: list[str]) -> None:
 
 
 def synthesize_vi(text: str, work_dir: Path, vi_voice: str = "Linh (Enhanced)",
-                  rate: int = 170) -> Path:
-    """Render Vi text to an Opus-in-OGG file using Linh (single-voice).
+                  en_voice: str = "Samantha", rate: int = 170) -> Path:
+    """Render Vi text with `english` backtick-bracketed chunks read by en_voice.
 
-    Backticks in the input are stripped before TTS — they're a display
-    convention from Claude (visually mark English in Telegram text), but
-    `say` would otherwise read them literally. Linh handles English words
-    with a Vietnamese accent; that's intentional (user prefers a single
-    cohesive voice). Use synthesize_en separately when you need accurate
-    English pronunciation for the model phrase.
-
-    Args:
-        text: Vi text, may contain backticks around English fragments
-            (which get stripped before TTS).
-        work_dir: existing dir for intermediate + output files (caller-owned).
-        vi_voice: macOS voice name (falls back to plain "Linh" if Enhanced
-            isn't installed).
-        rate: words per minute.
-
-    Returns:
-        Path to the .ogg file inside work_dir.
+    Bilingual split: text outside backticks → vi_voice; text inside → en_voice.
+    Each chunk is `say -o` to its own aiff, converted to ogg, then concatenated
+    via ffmpeg into one final ogg. If only one chunk exists, no concat.
+    Raises AudioError if the input has an odd number of backticks (malformed).
     """
-    clean_text = text.replace("`", "").strip()
-    if not clean_text:
+    chunks = _split_backticks(text)
+    if not chunks:
         raise AudioError("synthesize_vi got empty text")
-    voice = _resolve_vi_voice(vi_voice)
-    aiff = work_dir / "vi.aiff"
-    ogg = work_dir / "vi.ogg"
-    _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), clean_text])
-    _aiff_to_ogg(aiff, ogg)
-    return ogg
+
+    resolved_vi_voice = _resolve_vi_voice(vi_voice)
+
+    if len(chunks) == 1:
+        is_en, chunk_text = chunks[0]
+        voice = en_voice if is_en else resolved_vi_voice
+        aiff = work_dir / "vi.aiff"
+        ogg = work_dir / "vi.ogg"
+        _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
+        _aiff_to_ogg(aiff, ogg)
+        return ogg
+
+    ogg_parts: list[Path] = []
+    for i, (is_en, chunk_text) in enumerate(chunks):
+        voice = en_voice if is_en else resolved_vi_voice
+        aiff = work_dir / f"vi_{i}.aiff"
+        ogg = work_dir / f"vi_{i}.ogg"
+        _run(["say", "-v", voice, "-r", str(rate), "-o", str(aiff), chunk_text])
+        _aiff_to_ogg(aiff, ogg)
+        ogg_parts.append(ogg)
+
+    return _concat_oggs(ogg_parts, work_dir / "vi.ogg")
+
+
+def _split_backticks(text: str) -> list[tuple[bool, str]]:
+    """Split on backticks. Returns [(is_english, chunk)]. Trims whitespace,
+    skips empty chunks. Odd-indexed parts (after split) are English.
+
+    Raises AudioError if `text` contains an odd number of backticks
+    (malformed input — would misclassify the unmatched tail as English).
+    """
+    if text.count("`") % 2 != 0:
+        raise AudioError(
+            f"synthesize_vi: unmatched backtick in text (count={text.count('`')})"
+        )
+    parts = text.split("`")
+    out: list[tuple[bool, str]] = []
+    for i, raw in enumerate(parts):
+        chunk = raw.strip()
+        if not chunk:
+            continue
+        out.append((i % 2 == 1, chunk))
+    return out
 
 
 _VOICE_LINE_LOCALE_RE = re.compile(r"\s+[a-z]+_[A-Z]+\s+#.*$")
@@ -111,6 +135,20 @@ def _resolve_vi_voice(requested: str) -> str:
         for line in result.stdout.splitlines()
     }
     return requested if requested in names else "Linh"
+
+
+def _concat_oggs(parts: list[Path], out_path: Path) -> Path:
+    """Use ffmpeg concat demuxer to join multiple oggs in order."""
+    listfile = out_path.with_suffix(".list")
+    listfile.write_text("".join(f"file '{p}'\n" for p in parts))
+    _run([
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-f", "concat", "-safe", "0",
+        "-i", str(listfile),
+        "-c", "copy",
+        str(out_path),
+    ])
+    return out_path
 
 
 def transcribe(audio_path: Path, model_path: str) -> str:

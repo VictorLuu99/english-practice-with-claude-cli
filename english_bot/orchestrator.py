@@ -164,7 +164,7 @@ class Orchestrator:
             try:
                 ogg = await asyncio.to_thread(
                     self._audio.synthesize_vi,
-                    vi_text, work, vi_voice=self._vi_voice,
+                    vi_text, work, vi_voice=self._vi_voice, en_voice=self._en_voice,
                 )
                 await self._sender.send_voice(chat_id, ogg)
             except AudioError as e:
@@ -191,7 +191,8 @@ class Orchestrator:
                     summary_text = summary_text.rstrip(". ") + ". Câu tiếp theo."
                 vi_ogg = await asyncio.to_thread(
                     self._audio.synthesize_vi,
-                    summary_text, work, vi_voice=self._vi_voice,
+                    summary_text, work,
+                    vi_voice=self._vi_voice, en_voice=self._en_voice,
                 )
                 await self._sender.send_voice(chat_id, vi_ogg)
             except AudioError as e:
