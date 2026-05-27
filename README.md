@@ -86,6 +86,43 @@ export WHISPER_MODEL=~/.cache/whisper-cpp/ggml-base.en.bin
 └── README.md
 ```
 
+## Mandarin Chinese practice (`/chinese-practice`)
+
+Luyện nói tiếng Trung phổ thông (普通话). Cùng flow như English nhưng dùng giọng Tingting (zh_CN) + Whisper multilingual + feedback có Hanzi + Pinyin + tone correction.
+
+### Setup thêm (1 lần)
+
+```bash
+INSTALL_MULTILINGUAL=1 ./scripts/setup.sh   # download ggml-small.bin (~466MB)
+```
+
+Voice **Tingting** (zh_CN) thường đã cài sẵn trên macOS. Kiểm tra: `say -v '?' | grep Tingting`. Nếu không có: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices → Chinese (Mandarin) → Tingting → Download.
+
+### Chạy
+
+```bash
+claude
+# rồi gõ: /chinese-practice
+```
+
+Hoặc nếu đã thêm shortcut `chinese()` trong `~/.zshrc` (xem mục [Terminal shortcuts](#terminal-shortcuts)): chỉ cần gõ `chinese`.
+
+## Terminal shortcuts
+
+Thêm vào `~/.zshrc`:
+
+```bash
+english() (
+  cd /Users/vuongluu/Documents/learning/enghlish_q_n_a && claude "/english-practice"
+)
+
+chinese() (
+  cd /Users/vuongluu/Documents/learning/enghlish_q_n_a && claude "/chinese-practice"
+)
+```
+
+`source ~/.zshrc` rồi gõ `english` hoặc `chinese` từ bất kỳ đâu để vào practice session ngay.
+
 ## Telegram bot version (iPhone-friendly)
 
 Same loop, but you talk to a Telegram bot from your phone instead of the

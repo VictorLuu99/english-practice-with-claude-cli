@@ -5,12 +5,16 @@
 #
 # Env:
 #   WHISPER_MODEL        path to ggml model (default: ~/.cache/whisper-cpp/ggml-small.en.bin)
+#   WHISPER_LANG         language code for whisper-cli -l (default: en). Use "zh" for Chinese,
+#                        "ja" for Japanese, etc. Requires a multilingual model (ggml-small.bin,
+#                        not the .en.bin variant) when not "en".
 #   RECORD_MAX_SECONDS   safety cap on recording length (default: 45)
 #   SILENCE_TAIL         seconds of silence before stop (default: 2.5)
 #   SILENCE_THRESHOLD    sox silence threshold (default: 3%)
 set -euo pipefail
 
 MODEL="${WHISPER_MODEL:-$HOME/.cache/whisper-cpp/ggml-small.en.bin}"
+LANG_CODE="${WHISPER_LANG:-en}"
 MAX_SECONDS="${RECORD_MAX_SECONDS:-45}"
 SILENCE_TAIL="${SILENCE_TAIL:-2.5}"
 SILENCE_THRESHOLD="${SILENCE_THRESHOLD:-3%}"
@@ -50,7 +54,7 @@ if [[ ! -s "$TMPWAV" ]]; then
 fi
 
 # -nt: no timestamps. -otxt + -of: write transcript to ${TMPWAV}.out.txt
-whisper-cli -m "$MODEL" -f "$TMPWAV" -l en -nt --no-prints -otxt -of "$TMPWAV.out" >/dev/null 2>&1
+whisper-cli -m "$MODEL" -f "$TMPWAV" -l "$LANG_CODE" -nt --no-prints -otxt -of "$TMPWAV.out" >/dev/null 2>&1
 
 if [[ -f "$TMPWAV.out.txt" ]]; then
   # Trim leading/trailing whitespace

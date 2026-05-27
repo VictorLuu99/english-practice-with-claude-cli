@@ -29,7 +29,7 @@ echo "    OK: $(command -v whisper-cli)"
 
 MODEL_DIR="$HOME/.cache/whisper-cpp"
 MODEL_FILE="$MODEL_DIR/ggml-small.en.bin"
-echo "==> Whisper model"
+echo "==> Whisper English model"
 if [[ -f "$MODEL_FILE" ]]; then
   echo "    Already present: $MODEL_FILE"
 else
@@ -37,6 +37,21 @@ else
   echo "    Downloading ggml-small.en.bin (~466MB) to $MODEL_FILE"
   curl -L --fail -o "$MODEL_FILE" \
     https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin
+fi
+
+# Multilingual model — needed only for non-English practice (e.g. /chinese-practice).
+# Opt-in via INSTALL_MULTILINGUAL=1 to avoid forcing another 466MB on English-only users.
+MULTI_FILE="$MODEL_DIR/ggml-small.bin"
+if [[ "${INSTALL_MULTILINGUAL:-0}" == "1" ]]; then
+  echo "==> Whisper multilingual model (for Chinese/Japanese/etc.)"
+  if [[ -f "$MULTI_FILE" ]]; then
+    echo "    Already present: $MULTI_FILE"
+  else
+    mkdir -p "$MODEL_DIR"
+    echo "    Downloading ggml-small.bin (~466MB) to $MULTI_FILE"
+    curl -L --fail -o "$MULTI_FILE" \
+      https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
+  fi
 fi
 
 echo "==> Checking macOS Vietnamese voice 'Linh'"
