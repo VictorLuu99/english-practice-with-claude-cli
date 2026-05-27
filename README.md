@@ -4,6 +4,12 @@ Luyện nói tiếng Anh giao tiếp với Claude Code, $0 dưới Claude MAX su
 
 **Flow:** Claude đọc câu tiếng Việt → bạn nói câu English → Whisper transcribe → Claude feedback → câu mới. Stateless, không retry, random topics.
 
+## Demo
+
+<video src="demo.MOV" controls width="600"></video>
+
+> Nếu video không play inline trên GitHub, tải về xem: [demo.MOV](demo.MOV)
+
 ## Yêu cầu
 
 - macOS (dùng `say` cho TTS Vi)
