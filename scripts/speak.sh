@@ -2,7 +2,10 @@
 # Usage: ./speak.sh "Câu cần đọc."
 # Env:
 #   SPEAK_VOICE     primary voice (default: "Linh (Enhanced)" — falls back to Linh)
-#   SPEAK_EN_VOICE  voice for English fragments when primary is Linh* (default: Samantha)
+#   SPEAK_EN_VOICE  voice for backticked chunks when primary is Linh* (default: Samantha).
+#                   Despite the name, this is the "secondary backtick voice" — set to
+#                   Tingting (zh_CN) for Mandarin practice so Linh reads Vi and Tingting
+#                   reads Hanzi/Pinyin inside backticks.
 #   SPEAK_RATE      words per minute (default: 170 — natural, unhurried pace)
 set -euo pipefail
 

@@ -18,7 +18,7 @@ Bắt đầu **Mandarin Chinese Speaking Practice** session ngay bây giờ.
 5. Gọi `WHISPER_LANG=zh WHISPER_MODEL=$HOME/.cache/whisper-cpp/ggml-small.bin bash scripts/record.sh` → transcript Hanzi.
 6. Feedback theo format trong skill (`🎙️ You said` / `✅ Model` + Pinyin + nghĩa / `📝 Feedback` / `🔊 Tone check` conditional).
 7. Đọc Model bằng Tingting (`SPEAK_VOICE=Tingting SPEAK_RATE=140 bash scripts/speak.sh "<Model Mandarin>"`).
-8. Đọc feedback Việt bằng Linh (model phrase nhắc bằng Pinyin có số tone, vd "ni3 hao3", KHÔNG bọc Hanzi).
+8. Đọc feedback Việt bằng Linh + Tingting (`SPEAK_EN_VOICE=Tingting SPEAK_RATE=150 bash scripts/speak.sh "..."`). Bọc mọi Mandarin (Hanzi hoặc Pinyin) trong backticks — `speak.sh` route các chunk backticks sang Tingting, phần Vi sang Linh.
 9. Sang câu mới (KHÔNG retry, KHÔNG hỏi).
 10. Lặp đến khi user gõ "stop" / "dừng" / "thôi" / "quit" / "停" hoặc Ctrl-C.
 
