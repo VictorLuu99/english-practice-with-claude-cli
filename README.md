@@ -6,9 +6,7 @@ Luyện nói tiếng Anh giao tiếp với Claude Code, $0 dưới Claude MAX su
 
 ## Demo
 
-<video src="demo.MOV" controls width="600"></video>
-
-> Nếu video không play inline trên GitHub, tải về xem: [demo.MOV](demo.MOV)
+https://github.com/user-attachments/assets/17fffe21-95e2-4e50-a21d-7e227ba266ba
 
 ## Yêu cầu
 
